@@ -3,6 +3,9 @@ import React, { useState } from 'react';
 import EthrDID from 'ethr-did';
 import { Resolver } from 'did-resolver';
 import { getResolver } from 'ethr-did-resolver';
+import JSONPretty from 'react-json-pretty';
+
+import 'react-json-pretty/themes/monikai.css';
 
 const Home: React.FC = () => {
 
@@ -13,6 +16,7 @@ const Home: React.FC = () => {
         privateKey: ""
     })
     const [claim, setClaim] = useState("");
+    const [operationResult, setOperationResult] = useState("");
 
     function generateKeypair(){
         setKeypair(EthrDID.createKeyPair());
@@ -39,7 +43,6 @@ const Home: React.FC = () => {
             k[v.field] = v.value;
             return k;
         }, {});
-        console.log("Data",claimFields);
 
         const ethrDid = new EthrDID({
             rpcUrl: rpcUrl,
@@ -47,7 +50,6 @@ const Home: React.FC = () => {
         const verification  = await ethrDid.signJWT({
             claim: claimFields
         }, 1000); //Expiration time seems to be in ms
-        console.log(verification);
         setClaim(verification);
     }
 
@@ -62,7 +64,7 @@ const Home: React.FC = () => {
         let didResolver = new Resolver(ethrDidResolver);
         let jwt = e.target[0].value;
         let verifiedClaim = await ethrDid.verifyJWT(jwt, didResolver);
-        console.log(verifiedClaim)
+        setOperationResult(JSON.stringify(verifiedClaim));
     }
 
     async function resolveDidDocument(){
@@ -73,29 +75,18 @@ const Home: React.FC = () => {
         let ethrDidResolver = getResolver(providerConfig);
         let didResolver = new Resolver(ethrDidResolver);
         let doc = await didResolver.resolve('did:ethr:'+keypair.address);
-        console.log(doc);
+        setOperationResult(JSON.stringify(doc));
     }
 
     return (
-        <div className="flex flex-col">
+        <div className="flex flex-col w-1/2 mx-auto bg-white justify-center">
             <h1 className="font-bold text-center text-4xl">
                 DID ETHR POC
             </h1>
             <hr/>
-            <div className="flex flex-row w-full">
-                <div className="flex-1 flex flex-col justify-center items-center">
-                    <button className="bg-red-400 text-white w-40" onClick={generateKeypair}>
-                        Generate Key Pair
-                    </button>
-                </div>
-                <form className="flex-1 flex flex-col justify-center items-center" onSubmit={importKeypair}>
-                    <input type="text" placeholder="eth address" className="w-full"/>
-                    <input type="text" placeholder="private key hex" className="w-full"/>
-                    <button type="submit" className="bg-red-400 text-white w-40">
-                        Import Key Pair
-                    </button>
-                </form>
-            </div>
+            <h1 className="font-bold text-2xl">
+                Ethereum Keypair
+            </h1>
             <span>
                 <b>
                     Address : 
@@ -109,32 +100,70 @@ const Home: React.FC = () => {
                 {keypair.privateKey}
             </span>
             <hr/>
-            <form className="flex-1 flex flex-col justify-center items-center" onSubmit={signClaim}>
-                <div className="flex">
-                    <input type="text" placeholder="key"/>
-                    <input type="text" placeholder="value"/>
+            {keypair.address!=""&&keypair.privateKey!="" ? (
+                <div>
+                    <h1 className="font-bold text-2xl">
+                        Resolve the DID Document
+                    </h1>
+                    <div className="flex-1 flex justify-center w-full">
+                        <button type="button" className="bg-red-400 text-white w-56" onClick={resolveDidDocument}>
+                            Resolve DID Document
+                        </button>
+                    </div>
+                    <hr/>
+                    <h1 className="font-bold text-2xl">
+                        Sign Verifiable Credential (claim)
+                    </h1>
+                    <form className="flex-1 flex flex-col justify-center items-center" onSubmit={signClaim}>
+                        <div className="flex">
+                            <input type="text" placeholder="key" className="border-solid border border-black"/>
+                            <input type="text" placeholder="value" className="bborder-solid border border-black"/>
+                        </div>
+                        <button type="submit" className="bg-red-400 text-white w-40">
+                            Sign a Claim
+                        </button>
+                    </form>
+                    <b>
+                        Claim JWT Token : 
+                    </b>
+                    <textarea className="resize-none w-full" rows={5} value={claim} disabled/>
+                    <hr/>
+                    <h1 className="font-bold text-2xl">
+                        Verify Verifiable Claim
+                    </h1>
+                    <form className="flex-1 flex flex-col justify-center items-center" onSubmit={verifyClaim}>
+                        <textarea rows={5} placeholder="Claim JWT Token..." className="resize-none border-solid border border-black w-96"/>
+                        <button type="submit" className="bg-red-400 text-white w-40">
+                            Verify a JWT Claim
+                        </button>
+                    </form>
+                    <hr/>
+                    <h1 className="font-bold text-2xl">
+                            Results
+                        </h1>
+                        <JSONPretty id="json-pretty" data={operationResult}></JSONPretty>
                 </div>
-                <button type="submit" className="bg-red-400 text-white w-40">
-                    Sign a Claim
-                </button>
-            </form>
-            <b>
-                Claim : 
-            </b>
-            <span className="w-40">
-                {claim}
-            </span>
-            <hr/>
-            <form className="flex-1 flex flex-col justify-center items-center" onSubmit={verifyClaim}>
-                <input type="text" placeholder="claim name"/>
-                <button type="submit" className="bg-red-400 text-white w-40">
-                    Verify a JWT Claim
-                </button>
-            </form>
-            <hr/>
-            <button type="button" className="bg-red-400 text-white w-40" onClick={resolveDidDocument}>
-                Resolve DID Document
-            </button>
+            ) : (
+                <div className="flex flex-row w-full items-center">
+                    <div className="flex-1 flex flex-col justify-center items-center">
+                        <button className="bg-red-400 text-white w-40" onClick={generateKeypair}>
+                            Generate Key Pair
+                        </button>
+                    </div>
+                    <div>
+                        <h1 className="font-bold text-xl">
+                            OR
+                        </h1>
+                    </div>
+                    <form className="flex-1 flex flex-col justify-center items-center" onSubmit={importKeypair}>
+                        <input type="text" placeholder="eth address" className="w-full border-solid border border-black"/>
+                        <input type="text" placeholder="private key hex" className="w-full border-solid border border-black"/>
+                        <button type="submit" className="bg-red-400 text-white w-40">
+                            Import Key Pair
+                        </button>
+                    </form>
+                </div>
+            )}
         </div>
     );
 }
