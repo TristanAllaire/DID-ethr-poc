@@ -1,4 +1,7 @@
 ## Installation ##
+
+WARNING: This is a poc --> the code is ugly :'(
+
 This project is based on a fully functional React-Webpack-Typescript environment.
 
 1- Clone repo
