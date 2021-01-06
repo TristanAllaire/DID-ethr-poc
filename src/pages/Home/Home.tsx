@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+
 import EthrDID from 'ethr-did';
 import { Resolver } from 'did-resolver';
 import { getResolver } from 'ethr-did-resolver';
@@ -39,39 +40,39 @@ const Home: React.FC = () => {
             return k;
         }, {});
         console.log("Data",claimFields);
+
         const ethrDid = new EthrDID({
             rpcUrl: rpcUrl,
             ...keypair});
         const verification  = await ethrDid.signJWT({
             claim: claimFields
-        },
-        1000); //Expiration time seems to be in ms
+        }, 1000); //Expiration time seems to be in ms
         console.log(verification);
         setClaim(verification);
     }
 
     async function verifyClaim(e:any){
         e.preventDefault();
-        const providerConfig    = {
+        let providerConfig    = {
             rpcUrl: rpcUrl,
             ...keypair
         };
-        const ethrDid = new EthrDID(providerConfig);
-        const ethrDidResolver = getResolver(providerConfig);
-        const didResolver = new Resolver(ethrDidResolver);
-        const jwt = e.target[0].value;
-        const verifiedClaim = await ethrDid.verifyJWT(jwt, didResolver);
+        let ethrDid = new EthrDID(providerConfig);
+        let ethrDidResolver = getResolver(providerConfig);
+        let didResolver = new Resolver(ethrDidResolver);
+        let jwt = e.target[0].value;
+        let verifiedClaim = await ethrDid.verifyJWT(jwt, didResolver);
         console.log(verifiedClaim)
     }
 
     async function resolveDidDocument(){
-        const providerConfig    = {
+        let providerConfig    = {
             rpcUrl: rpcUrl,
             ...keypair
         };
-        const ethrDidResolver = getResolver(providerConfig);
-        const didResolver = new Resolver(ethrDidResolver);
-        const doc = await didResolver.resolve('did:ethr:'+keypair.address);
+        let ethrDidResolver = getResolver(providerConfig);
+        let didResolver = new Resolver(ethrDidResolver);
+        let doc = await didResolver.resolve('did:ethr:'+keypair.address);
         console.log(doc);
     }
 
