@@ -5,76 +5,109 @@ import { Resolver } from 'did-resolver';
 import { getResolver } from 'ethr-did-resolver';
 import JSONPretty from 'react-json-pretty';
 
+import { EthrStatusRegistry } from 'ethr-status-registry'
 import 'react-json-pretty/themes/monikai.css';
 
 const Home: React.FC = () => {
 
-    const rpcUrl = "https://rinkeby.infura.io/v3/79e9108c93fc4553b4c00f587c6ca160";
+    const rpcUrl    = "https://rinkeby.infura.io/v3/79e9108c93fc4553b4c00f587c6ca160";
 
-    const [keypair, setKeypair] = useState({
+    const [issuerKeypair, setIssuerKeypair] = useState({
         address: "",
         privateKey: ""
     })
-    const [claim, setClaim] = useState("");
-    const [operationResult, setOperationResult] = useState("");
+    const [subjectKeypair, setSubjectKeypair] = useState({
+        address: "",
+        privateKey: ""
+    })
+    const [selectedIdentity, setSelectedIdentity] = useState("");
 
-    function generateKeypair(){
-        setKeypair(EthrDID.createKeyPair());
+    const [credential, setCredential] = useState("");
+    const [operationResult, setOperationResult] = useState("");
+    const [credentialStatus, setCredentialStatus] = useState("");
+
+    function generateKeypairs(){
+        setIssuerKeypair(EthrDID.createKeyPair());
+        setSubjectKeypair(EthrDID.createKeyPair());
     }
 
-    function importKeypair(e:any){
+    function importKeypairs(e:any){
         e.preventDefault();
-        setKeypair({
+        setIssuerKeypair({
             address: e.target[0].value,
             privateKey: e.target[1].value
-        })
+        });
+        setSubjectKeypair({
+            address: e.target[2].value,
+            privateKey: e.target[3].value
+        });
     }
 
-    async function signClaim(e:any){
+    async function signCredential(e:any){
         e.preventDefault();
         let fields  = [];
-        for(let i=0; i<e.target.length-1; i+=2){
+        for(let i=1; i<e.target.length-1; i+=2){
             fields.push({
                 field: e.target[i].value,
                 value: e.target[i+1].value
             })
         }
-        let claimFields = fields.reduce(function(k:any, v:any) {
+        let credentialFields = fields.reduce(function(k:any, v:any) {
             k[v.field] = v.value;
             return k;
         }, {});
 
-        const ethrDid = new EthrDID({
+        let ethrDid = new EthrDID({
             rpcUrl: rpcUrl,
-            ...keypair});
-        const verification  = await ethrDid.signJWT({
-            claim: claimFields
-        }, 1000); //Expiration time seems to be in ms
-        setClaim(verification);
+            ...issuerKeypair});
+        
+        let verification  = await ethrDid.signJWT({
+            claim: credentialFields,
+            sub: "did:ethr:"+subjectKeypair.address
+        }, e.target[0].value * 1000); //Expiration time seems to be in ms
+        setCredential(verification);
     }
 
-    async function verifyClaim(e:any){
+    async function verifyCredential(e:any){
         e.preventDefault();
         let providerConfig    = {
             rpcUrl: rpcUrl,
-            ...keypair
+            ...subjectKeypair
         };
         let ethrDid = new EthrDID(providerConfig);
         let ethrDidResolver = getResolver(providerConfig);
         let didResolver = new Resolver(ethrDidResolver);
         let jwt = e.target[0].value;
-        let verifiedClaim = await ethrDid.verifyJWT(jwt, didResolver);
-        setOperationResult(JSON.stringify(verifiedClaim));
+        let verifiedCredential = await ethrDid.verifyJWT(jwt, didResolver);
+        setOperationResult(JSON.stringify(verifiedCredential));
+
+        //Vérification du statut d'un contrat
+        //La vérification se fera sur le noeud Infura renseigné
+        let status = new EthrStatusRegistry({
+            infuraProjectId: '79e9108c93fc4553b4c00f587c6ca160'
+        })
+        let credentialStatus     = await status.checkStatus(jwt, verifiedCredential.doc);
+        setCredentialStatus(JSON.stringify(credentialStatus));
     }
 
-    async function resolveDidDocument(){
-        let providerConfig    = {
+    function onSelectIdentity(e:any){
+        setSelectedIdentity(e.target.value);
+    }
+
+    async function resolveDidDocument(e:any){
+        e.preventDefault();
+
+        let providerConfig;
+        let selectedKeypair   = selectedIdentity === "issuer" ? issuerKeypair : subjectKeypair;
+
+        providerConfig    = {
             rpcUrl: rpcUrl,
-            ...keypair
+            ...selectedKeypair
         };
+
         let ethrDidResolver = getResolver(providerConfig);
         let didResolver = new Resolver(ethrDidResolver);
-        let doc = await didResolver.resolve('did:ethr:'+keypair.address);
+        let doc = await didResolver.resolve('did:ethr:'+selectedKeypair.address);
         setOperationResult(JSON.stringify(doc));
     }
 
@@ -87,81 +120,100 @@ const Home: React.FC = () => {
             <h1 className="font-bold text-2xl">
                 Ethereum Keypair
             </h1>
-            <span>
-                <b>
-                    Address : 
-                </b>
-                {keypair.address}
-            </span>
-            <span>
-                <b>
-                    Private Key : 
-                </b>
-                {keypair.privateKey}
-            </span>
+            <h1 className="font-bold text-xl">
+                Issuer
+            </h1>
+            <JSONPretty id="json-pretty" data={issuerKeypair}></JSONPretty>
+            <h1 className="font-bold text-xl">
+                Subject
+            </h1>
+            <JSONPretty id="json-pretty" data={subjectKeypair}></JSONPretty>
             <hr/>
-            {keypair.address!=""&&keypair.privateKey!="" ? (
+            {issuerKeypair.address!=""&&issuerKeypair.privateKey!="" ? (
                 <div>
                     <h1 className="font-bold text-2xl">
-                        Resolve the DID Document
+                        DID Document
                     </h1>
-                    <div className="flex-1 flex justify-center w-full">
-                        <button type="button" className="bg-red-400 text-white w-56" onClick={resolveDidDocument}>
-                            Resolve DID Document
+                    <form className="flex-1 flex flex-col justify-center items-center w-full" onSubmit={resolveDidDocument}>
+                        <div className="flex" onChange={onSelectIdentity}>
+                            <input type="radio" id="issuer" name="keypair" value="issuer"/>
+                            <label htmlFor="issuer">Issuer</label>
+
+                            <input type="radio" id="subject" name="keypair" value="subject"/>
+                            <label htmlFor="subject">Subject</label>
+                        </div>
+                        <button type="submit" className="bg-red-400 text-white w-56">
+                            Resolve DID Documents
                         </button>
-                    </div>
+                    </form>
                     <hr/>
                     <h1 className="font-bold text-2xl">
-                        Sign Verifiable Credential (claim)
+                        Sign Verifiable Credential
                     </h1>
-                    <form className="flex-1 flex flex-col justify-center items-center" onSubmit={signClaim}>
+                    <form className="flex-1 flex flex-col justify-center items-center" onSubmit={signCredential}>
+                        <input type="number" placeholder="expiration in seconds" className="border-solid border border-black"/>
                         <div className="flex">
                             <input type="text" placeholder="key" className="border-solid border border-black"/>
                             <input type="text" placeholder="value" className="bborder-solid border border-black"/>
                         </div>
                         <button type="submit" className="bg-red-400 text-white w-40">
-                            Sign a Claim
+                            Sign a Credential
                         </button>
                     </form>
                     <b>
-                        Claim JWT Token : 
+                        Credential JWT Token : 
                     </b>
-                    <textarea className="resize-none w-full" rows={5} value={claim} disabled/>
+                    <textarea className="resize-none w-full" rows={5} value={credential} disabled/>
                     <hr/>
                     <h1 className="font-bold text-2xl">
-                        Verify Verifiable Claim
+                        Verify Verifiable Credential
                     </h1>
-                    <form className="flex-1 flex flex-col justify-center items-center" onSubmit={verifyClaim}>
-                        <textarea rows={5} placeholder="Claim JWT Token..." className="resize-none border-solid border border-black w-96"/>
+                    <form className="flex-1 flex flex-col justify-center items-center" onSubmit={verifyCredential}>
+                        <textarea rows={5} placeholder="Credential JWT Token..." className="resize-none border-solid border border-black w-96"/>
                         <button type="submit" className="bg-red-400 text-white w-40">
-                            Verify a JWT Claim
+                            Verify a JWT Credential
                         </button>
                     </form>
                     <hr/>
+                    {
+                        credentialStatus!=="" && (
+                            <>
+                                <h1 className="font-bold text-2xl">
+                                    Credential Status
+                                </h1>
+                                <JSONPretty id="json-pretty" data={credentialStatus}></JSONPretty>
+                            </>
+                        )
+                    }
                     <h1 className="font-bold text-2xl">
-                            Results
-                        </h1>
-                        <JSONPretty id="json-pretty" data={operationResult}></JSONPretty>
+                        Results
+                    </h1>
+                    <JSONPretty id="json-pretty" data={operationResult}></JSONPretty>
                 </div>
             ) : (
-                <div className="flex flex-row w-full items-center">
-                    <div className="flex-1 flex flex-col justify-center items-center">
-                        <button className="bg-red-400 text-white w-40" onClick={generateKeypair}>
-                            Generate Key Pair
+                <div className="flex flex-col w-full items-center">
+                    <hr/>
+                    <form className="w-full flex flex-col justify-center" onSubmit={importKeypairs}>
+                        <label htmlFor="issuer" className="font-bold">Issuer</label>
+                        <input type="text" placeholder="eth address" className="w-full border-solid border border-black" id="issuer"/>
+                        <input type="text" placeholder="private key hex" className="w-full border-solid border border-black"/>
+                        <label htmlFor="subject" className="font-bold">Subject</label>
+                        <input type="text" placeholder="eth address" className="w-full border-solid border border-black" id="subject"/>
+                        <input type="text" placeholder="private key hex" className="w-full border-solid border border-black"/>
+                        <button type="submit" className="bg-red-400 text-white w-40 mx-auto">
+                            Import Key Pair
                         </button>
-                    </div>
+                    </form>
                     <div>
                         <h1 className="font-bold text-xl">
                             OR
                         </h1>
                     </div>
-                    <form className="flex-1 flex flex-col justify-center items-center" onSubmit={importKeypair}>
-                        <input type="text" placeholder="eth address" className="w-full border-solid border border-black"/>
-                        <input type="text" placeholder="private key hex" className="w-full border-solid border border-black"/>
-                        <button type="submit" className="bg-red-400 text-white w-40">
-                            Import Key Pair
+                    <div className="flex flex-col justify-center items-center">
+                        <button className="bg-red-400 text-white w-40" onClick={generateKeypairs}>
+                            Generate Keypairs
                         </button>
-                    </form>
+                    </div>
                 </div>
             )}
         </div>

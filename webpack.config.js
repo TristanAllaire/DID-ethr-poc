@@ -1,5 +1,7 @@
 const HtmlWebPackPlugin = require( 'html-webpack-plugin' );
+const webpack = require( 'webpack' );
 const path = require( 'path' );
+
 module.exports = {
    context: __dirname,
    entry: './src/index.tsx',
@@ -58,6 +60,14 @@ module.exports = {
     resolve: {
         modules: [path.resolve(__dirname, './src'), 'node_modules'],
         extensions: [ '.tsx', '.ts', '.js' ],
+        fallback: {
+            https: require.resolve("https-browserify"),
+            http: require.resolve("stream-http"),
+            fs: false,
+            child_process: false,
+            net: require.resolve("net"),
+            process: require.resolve("process")
+        }
     },
     output: {
         filename: 'bundle.js',
@@ -67,6 +77,9 @@ module.exports = {
         new HtmlWebPackPlugin({
             template: path.resolve( __dirname, 'public/index.html' ),
             filename: 'index.html'
+        }),
+        new webpack.DefinePlugin({
+            'process.env.NODE_ENV': JSON.stringify('development')
         })
     ],
     externals: {
